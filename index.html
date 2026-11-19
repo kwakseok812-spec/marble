@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#0c2236">
 <meta name="color-scheme" content="dark">
 <title>캠퍼스 한 바퀴</title>
+<link rel="icon" type="image/png" href="icon-192.png">
 <style>
 :root{
   --bg:#0c2236; --bg2:#12344f; --panel:#173f5e; --line:#2c5c82; --ink:#f2f7fb; --dim:#9db9cd;
@@ -196,13 +197,13 @@ button:disabled{cursor:default}
 
 <div id="menu">
   <div class="box">
-    <div class="mhop"><i style="--pc:#ff7b7b"></i><i style="--pc:#4cc9f0"></i><i style="--pc:#ffd166"></i><i style="--pc:#5ef0b8"></i></div>
+    <div class="mhop"><i style="--pc:#ff7b7b;border-radius:50%"></i><i style="--pc:#4cc9f0;border-radius:24%"></i><i style="--pc:#ffd166;border-radius:50% 0 50% 0"></i><i style="--pc:#5ef0b8;border-radius:50% 50% 12% 12%"></i></div>
     <h1>캠퍼스 <em>한 바퀴</em></h1>
     <div class="sub">땅을 사고 건물을 올려서 제일 부자가 되어요</div>
     <div class="lab">컴퓨터 상대</div>
     <div class="seg" id="segOpp"><button data-v="1">1명</button><button data-v="2">2명</button><button data-v="3">3명</button></div>
     <div class="lab">게임 길이</div>
-    <div class="seg" id="segLen"><button data-v="0">짧게<small>25라운드</small></button><button data-v="1">보통<small>40라운드</small></button><button data-v="2">길게<small>60라운드</small></button></div>
+    <div class="seg" id="segLen"><button data-v="0">짧게<small>~5분</small></button><button data-v="1">보통<small>~10분</small></button><button data-v="2">길게<small>~15분</small></button></div>
     <button class="mb go" id="bStart">새 게임 시작</button>
     <button class="mb sec" id="bResume" hidden>이어하기</button>
     <button class="mb sec" id="bMenuRule">규칙 보기</button>
@@ -255,7 +256,7 @@ function newGame(o){
  for(var i=0;i<n;i++)players.push({id:i,name:PNAMES[i],col:PCOLS[i],human:(i===0&&o.human!==false),cash:START_CASH,pos:0,rest:0,alive:true,aggr:PAGGR[i],laps:0,outAt:0});
  var deck=[];for(i=0;i<CARDS.length;i++)deck.push(i);shuffle(deck,rng);
  var own=[],lvl=[];for(i=0;i<BOARD_N;i++){own.push(-1);lvl.push(0);}
- return {v:1,players:players,own:own,lvl:lvl,round:1,cur:0,limit:o.rounds,deck:deck,dp:0,bankNet:0,over:false,reason:'',rank:[],deathSeq:0,turns:0};
+ return {v:1,players:players,own:own,lvl:lvl,round:1,cur:0,limit:o.rounds,deck:deck,dp:0,bankNet:0,over:false,reason:'',rank:[],deathSeq:0,turns:0,pend:null};
 }
 function hasMono(G,pid,g){var a=GCELLS[g];for(var i=0;i<a.length;i++)if(G.own[a[i]]!==pid)return false;return true;}
 function rentOf(G,i){var c=CELLS[i];if(G.own[i]<0)return 0;var r=c.r[G.lvl[i]];return hasMono(G,G.own[i],c.g)?r*2:r;}
@@ -377,13 +378,17 @@ function* landing(G,p,rng,depth){
 }
 function* turn(G,rng){
  var p=G.players[G.cur];
- G.turns++;
- if(p.rest>0){p.rest--;yield {k:'rest',pi:p.id};return;}
- if(!p.human){var u=aiBuild(G,p);if(u>=0)yield {k:'up',pi:p.id,i:u,cost:CELLS[u].b,pre:true};}
- yield {k:'roll',pi:p.id,human:p.human};
- var d1=1+Math.floor(rng()*6),d2=1+Math.floor(rng()*6);
- yield {k:'dice',pi:p.id,d:[d1,d2]};
- yield* moveBy(G,p,d1+d2,1);
+ if(!G.pend){
+  G.turns++;
+  if(p.rest>0){p.rest--;yield {k:'rest',pi:p.id};return;}
+  if(!p.human){var u=aiBuild(G,p);if(u>=0)yield {k:'up',pi:p.id,i:u,cost:CELLS[u].b,pre:true};}
+  yield {k:'roll',pi:p.id,human:p.human};
+  G.pend=[1+Math.floor(rng()*6),1+Math.floor(rng()*6)];
+ }
+ var d=G.pend;
+ yield {k:'dice',pi:p.id,d:d};
+ G.pend=null;
+ yield* moveBy(G,p,d[0]+d[1],1);
  yield* landing(G,p,rng,0);
 }
 function finish(G,reason){
@@ -481,13 +486,14 @@ function buildPawns(){
  var pw=$('pawns');pw.innerHTML='';pawnEls=[];
  G.players.forEach(function(p){
   var e=document.createElement('div');e.className='pawn';e.style.setProperty('--pc',p.col);
-  e.innerHTML='<div class="pi"></div>';pw.appendChild(e);pawnEls.push(e);
+  e.innerHTML='<div class="pi"></div>';e.firstChild.style.borderRadius=SHAPES[p.id];pw.appendChild(e);pawnEls.push(e);
   pawnCell[p.id]=p.pos;
  });
  pawnEls.forEach(function(e){e.style.transition='none';});
  placeAll();void pw.offsetWidth;
  pawnEls.forEach(function(e){e.style.transition='';});
 }
+var SHAPES=['50%','24%','50% 0 50% 0','50% 50% 12% 12%'];
 var OFFX=[-.27,-.09,.09,.27];
 function pawnXY(pi,cell){
  var cs=$('board').clientWidth/8,xy=cellXY(cell);
@@ -517,11 +523,11 @@ function renderPlayers(){
  var h='';
  G.players.forEach(function(p){
   var lands=landsOf(G,p.id).length;
-  h+='<div class="pl'+(p.id===G.cur&&!G.over?' cur':'')+(p.alive?'':' dead')+'" style="--pc:'+p.col+'"><div class="t"><i></i>'+p.name+'</div><div class="m">'+p.cash+'</div><div class="s">'+(p.alive?('땅 '+lands+(p.rest>0?' · 쉬는 중':'')):'탈락')+'</div></div>';
+  h+='<div class="pl'+(p.id===G.cur&&!G.over?' cur':'')+(p.alive?'':' dead')+'" style="--pc:'+p.col+'"><div class="t"><i style="border-radius:'+SHAPES[p.id]+'"></i>'+p.name+'</div><div class="m">'+p.cash+'</div><div class="s">'+(p.alive?('땅 '+lands+(p.rest>0?' · 쉬는 중':'')):'탈락')+'</div></div>';
  });
  $('players').innerHTML=h;
  var c=G.players[G.cur];
- $('turn').querySelector('.dot').style.background=c.col;$('tName').textContent=c.name+' 차례';$('tCash').textContent=c.cash;
+ var dt=$('turn').querySelector('.dot');dt.style.background=c.col;dt.style.borderRadius=SHAPES[c.id];$('tName').textContent=c.name+' 차례';$('tCash').textContent=c.cash;
  $('rd').textContent=G.round;$('rdMax').textContent=G.limit;
  pawnEls.forEach(function(e,i){e.classList.toggle('me',i===G.cur&&G.players[i].alive&&!calm);e.classList.toggle('out',!G.players[i].alive);});
 }
@@ -567,13 +573,13 @@ function landHTML(i,mode){
  h+='<div class="rt">';
  ['땅만','건물 1','건물 2','건물 3'].forEach(function(t,k){h+='<div'+(o>=0&&lv===k?' class="now"':'')+'><small>'+t+'</small><b>'+c.r[k]+'</b></div>';});
  h+='</div>';
- var a=GCELLS[c.g];h+='<div class="grp">같은 색';
+ var a=GCELLS[c.g];h+='<div class="grp">같은 색 ×2';
  a.forEach(function(j){var oc=G.own[j]>=0?G.players[G.own[j]].col:'transparent';h+='<i style="background:'+oc+';'+(j===i?'box-shadow:0 0 0 2px #fff':'')+'" title="'+CELLS[j].n+'"></i>';});
  h+='</div>';
  var info='';
- if(o<0)info='아직 주인이 없어요';
- else info='<b style="color:'+G.players[o].col+'">'+G.players[o].name+'</b>의 땅 · 건물 '+lv+'단계'+(hasMono(G,o,c.g)?' · <b>독점! 통행료 2배</b>':'');
- h+='<div class="info">'+info+'<br>건물 한 단계 올리는 비용 <b>'+c.b+'</b> · 같은 색을 모두 가지면 통행료 2배</div>';
+ if(o<0)info='주인 없는 땅';
+ else info='<b style="color:'+G.players[o].col+'">'+G.players[o].name+'</b>의 땅 · 건물 '+lv+(hasMono(G,o,c.g)?' · <b>독점 ×2</b>':'');
+ h+='<div class="info">'+info+' · 올리기 <b>'+c.b+'</b></div>';
  if(mode==='buy'){h+='<div class="btns"><button class="btn" data-a="no">안 사요</button><button class="btn pri" data-a="yes">사기 '+c.p+'</button></div>';}
  else if(mode==='up'){h+='<div class="btns"><button class="btn" data-a="no">그만두기</button><button class="btn pri" data-a="yes">건물 올리기 '+c.b+'</button></div>';}
  else{
@@ -597,12 +603,11 @@ function showLuck(txt,human){
  });
 }
 function rulesHTML(){
- return '<div class="big">게임 규칙</div><ul class="rules">'+
- '<li><b class="n">1</b>주사위 두 개를 굴려 판을 돌아요. 출발칸을 지나면 월급 '+SALARY+'.</li>'+
- '<li><b class="n">2</b>빈 땅은 사서 내 땅으로! 내 땅에 서면 건물을 1~3단계까지 올릴 수 있어요.</li>'+
- '<li><b class="n">3</b>남의 땅에 서면 통행료를 내요. 같은 색 땅을 모두 가지면 통행료가 2배!</li>'+
- '<li><b class="n">4</b>행운 카드, 세금, 휴게실(한 번 쉬기), 셔틀(연구동으로 순간이동) 칸이 있어요.</li>'+
- '<li><b class="n">5</b>돈이 모자라면 땅이 팔리고, 그래도 모자라면 탈락. 마지막 한 명이 되거나 정한 라운드가 끝났을 때 재산이 제일 많으면 승리!</li></ul>'+
+ return '<div class="big">규칙</div><ul class="rules">'+
+ '<li><b class="n">1</b>주사위로 한 바퀴 돌면 월급 '+SALARY+'</li>'+
+ '<li><b class="n">2</b>빈 땅은 사고, 내 땅은 건물 1~3단계</li>'+
+ '<li><b class="n">3</b>남의 땅은 통행료! 같은 색 다 모으면 2배</li>'+
+ '<li><b class="n">4</b>돈이 없으면 땅이 팔리고 탈락. 끝나면 재산 1등 승리</li></ul>'+
  '<div class="btns"><button class="btn pri" data-a="close">알겠어요</button></div>';
 }
 $('bRule').onclick=function(){openSheet(rulesHTML(),'rules');};
@@ -637,7 +642,7 @@ async function handle(v,sid){
    else{say(nm+' 차례');setRoll(nm+' 차례…',false);await wait(650);}
    break;
   case 'dice':
-   await rollDice(v.d);
+   save();await rollDice(v.d);
    say(v.d[0]+' + '+v.d[1]+' = '+(v.d[0]+v.d[1])+'칸');await wait(350);break;
   case 'move':
    for(var j=0;j<v.path.length;j++){if(sid!==session)return;placePawn(v.pi,v.path[j],false);await wait(150);}
@@ -698,7 +703,7 @@ function endGame(){
  var h='<div class="big">'+(won?'우승! 🎉':(me.alive?'아쉬워요':'탈락했어요'))+'</div>';
  var why={limit:'정한 라운드가 끝났어요',last:'마지막 한 명이 남았어요',out:'파산했어요'}[G.reason]||'';
  h+='<div class="info" style="text-align:center">'+why+'</div><div class="rank">';
- rank.forEach(function(id,k){var p=G.players[id];h+='<div><span class="no">'+(k+1)+'</span><span class="dt" style="background:'+p.col+'"></span><b>'+p.name+'</b><span class="w">'+(p.alive?netWorth(G,id):'탈락')+'</span></div>';});
+ rank.forEach(function(id,k){var p=G.players[id];h+='<div><span class="no">'+(k+1)+'</span><span class="dt" style="background:'+p.col+';border-radius:'+SHAPES[id]+'"></span><b>'+p.name+'</b><span class="w">'+(p.alive?netWorth(G,id):'탈락')+'</span></div>';});
  h+='</div><div class="info" style="text-align:center">재산 = 현금 + 땅값 + 건물값</div>';
  h+='<div class="btns"><button class="btn" data-a="menu">메뉴</button><button class="btn pri" data-a="again">한 판 더</button></div>';
  inGame=false;
@@ -746,7 +751,7 @@ $('bQuit').onclick=function(){if(!$('quit').hidden)return;if(inGame)askQuit();el
 $('qNo').onclick=function(){$('quit').hidden=true;paused=false;};
 $('qYes').onclick=function(){toMenu();};
 window.__gameBack=function(){
- if(!$('quit').hidden){$('quit').hidden=true;paused=false;return true;}
+ if(!$('quit').hidden)return false;
  if(!$('sheet').hidden&&(sheetKind==='info'||sheetKind==='rules')){closeSheet();return true;}
  if(!$('menu').hidden){if(!$('sheet').hidden){closeSheet();return true;}return false;}
  if(inGame){askQuit();return true;}
